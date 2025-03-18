@@ -25,6 +25,7 @@ ps -ef | grep elasticsearch
 import kagglehub
 from elasticsearch import Elasticsearch
 import time
+import pandas as pd
 
 es = Elasticsearch("http://localhost:9200")
 # Let's test whether we have succesfully started an ES instance and
