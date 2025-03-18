@@ -1,0 +1,5 @@
+path = kagglehub.dataset_download("snap/amazon-fine-food-reviews")
+print("Path to dataset files:", path)
+
+df = pd.read_csv('/root/.cache/kagglehub/datasets/snap/amazon-fine-food-reviews/versions/2/Reviews.csv')
+df.head()
