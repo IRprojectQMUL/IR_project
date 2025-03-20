@@ -43,7 +43,112 @@ path = kagglehub.dataset_download("snap/amazon-fine-food-reviews")
 print("Path to dataset files:", path)
 
 reviews = pd.read_csv('/root/.cache/kagglehub/datasets/snap/amazon-fine-food-reviews/versions/2/Reviews.csv')
+reviews = reviews.drop(['Id', 'UserId', 'ProfileName', 'Score', 'HelpfulnessNumerator', 'HelpfulnessDenominator', 'Time'], axis=1)
+reviews = reviews.dropna(subset=['Summary'])
 reviews.head()
 
-reviews = reviews.drop(['Id', 'UserId', 'ProfileName', 'HelpfulnessNumerator', 'HelpfulnessDenominator','Time'], axis=1)
-reviews.head()
+text_data = reviews.values.tolist()
+text_data[:10]
+
+
+# If you want to rerun stuff from the beginning run this to delete the index incase it already exists
+# es.indices.delete(index_name)
+
+request_body = {
+    'settings': {
+        # which retrieval model to use
+        'similarity': {
+                'default': {
+                    'type': 'BM25',
+                    "b": 0,
+                    "k1": 10
+                }
+            }
+
+    },
+    # preprocessing
+    'mappings': {
+          'properties': {
+              'productid': {'type': 'text'},
+              'summary': {'type': 'text'},
+              'text': {'type': 'text'}
+          }
+    }
+}
+
+index_name = 'food-reviews'
+try:
+  es.indices.get(index_name)
+  print('index {} already exists'.format(index_name))
+except:
+  print('creating index {}'.format(index_name))
+  es.indices.create(index_name, body=request_body)
+
+# Function to index data
+# If you get a Timeout error delete the index then recreate it and rerun this function
+def gendata():
+    for texts in text_data:
+        yield {
+            '_op_type': 'index',  
+            '_index': index_name,
+            'productid': texts[0],
+            'summary': texts[1],
+            'text': texts[2],
+        }
+
+# Perform the bulk operation
+success, failed = bulk(es, gendata())
+print(f"Successfully indexed {success} documents.")
+print(f"Failed to index {failed} documents.")
+
+count = es.cat.count(index=index_name,h=['count'])
+
+# Outputs the index info showing the name and number of documents in the index which should be 568427
+def index_info(index_name):
+  count, deleted, shards, =  es.cat.indices(index=index_name,
+                                            h=['docs.count', 'docs.deleted', 'pri'])[:-1].split(' ')
+  print(
+      """
+      #### INDEX INFO #####
+      index_name = {}
+      doc_count = {}
+      shard_count = {}
+      deleted_doc_count = {}
+      """.format(index_name, count, shards, deleted)
+  )
+
+
+index_info(index_name)
+
+# Function that outputs the documents relevant to the query 
+def pretty_response(response):
+    if len(response["hits"]["hits"]) == 0:
+        print("Your search returned no results.")
+    else:
+        for hit in response["hits"]["hits"]:
+            # Access the fields from '_source'
+            text = hit["_source"]['text']
+            id = hit["_source"]['productid']
+            summary = hit["_source"]['summary']
+            score = hit["_score"]
+            pretty_output = f"\nID: {id}\nSummary: {summary}\nScore: {score}\nTitle: {text}\n"
+            print(pretty_output)
+
+# Function of input query finds all documents containing the word match
+def query_body(word):
+    query = {
+        'query': {
+            'match': {
+                'text': word  # Example query to search for reviews containing 'bought'
+            }
+        }
+    }
+    return query
+
+
+# Assuming 'es' is your Elasticsearch client and you're querying the index
+results = es.search(index=index_name, size=5, body=query_body('bad'))
+
+# Call the function to display results
+pretty_response(results)
+
