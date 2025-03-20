@@ -38,3 +38,12 @@ else:
 # start es server
 time.sleep(20) # give the server 20 seconds to start
 !curl -X GET "http://localhost:9200"
+
+path = kagglehub.dataset_download("snap/amazon-fine-food-reviews")
+print("Path to dataset files:", path)
+
+reviews = pd.read_csv('/root/.cache/kagglehub/datasets/snap/amazon-fine-food-reviews/versions/2/Reviews.csv')
+reviews.head()
+
+reviews = reviews.drop(['Id', 'UserId', 'ProfileName', 'HelpfulnessNumerator', 'HelpfulnessDenominator','Time'], axis=1)
+reviews.head()
