@@ -170,7 +170,7 @@ def pretty_response(response):
             print(pretty_output)
 
 # Function of input query finds all documents containing the word match
-def query_body(input,gte, lte):
+def query_body(input,gte):
     query = {
         "query": {
             "bool": {
@@ -184,8 +184,7 @@ def query_body(input,gte, lte):
                 "filter": {
                     "range":{
                         "rating" :{
-                            "gte":gte,
-                            "lte": lte
+                            "gte":gte
                         }
                     }
                 }
@@ -200,7 +199,7 @@ def query_body(input,gte, lte):
 
 
 try:
-    results = es.search(index=index_name ,size=5, body=query_body('water',3,5), explain=True, preference= 'same_shard')
+    results = es.search(index=index_name ,size=10, body=query_body('summertime',3), explain=True, preference= 'same_shard')
     pretty_response(results)
 except ElasticsearchException as e:
     print(f"An error occured when executing query: {e}")
