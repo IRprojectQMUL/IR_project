@@ -53,6 +53,7 @@ reviews = reviews.dropna(subset=['Summary'])
 reviews.head()
 
 
+## PREPROCESSING MODULE
 
 #load spaCy model for tokenisation and lemmatisation
 nlp = spacy.load("en_core_web_sm")
@@ -80,3 +81,132 @@ stopword_set = vectorizer.get_stop_words()
 reviews_text = [[word for word in tokens if word not in stopword_set] for tokens in reviews_text]
 
 print(reviews_text[:5])
+
+## INDEXING MODULE 
+
+# Define the request body for creating an Elasticsearch index
+request_body = {
+    'settings': {
+        'number_of_shards': 1,  # Set the number of primary shards for the index
+        'number_of_replicas': 1,  # Set the number of replica shards for the index
+        'index': {
+            'refresh_interval': '-1'  # Disable automatic refresh to optimize bulk indexing
+        },
+        'similarity': {
+            'default': {
+                'type': 'BM25',  # Use BM25 similarity algorithm for ranking search results
+                "b": 0.75,  # Controls document field-length normalization, higher value gives more weight to short documents
+                "k1": 1.2  # Controls term frequency saturation, higher value gives more weight to frequent terms
+            }
+        }
+    },
+    'mappings': {
+        'properties': {
+            'productid': {'type': 'keyword'},  # 'productid' is a keyword field (not analyzed, exact match)
+            'summary': {
+                'type': 'text',  # 'summary' is a text field, analyzed for full-text search
+                'fields': {
+                    'keyword': {'type': 'keyword'}  # Create a 'keyword' sub-field for exact matching on 'summary'
+                }
+            },
+            'text': {
+                'type': 'text',  # 'text' field is also analyzed for full-text search
+                'fields': {
+                    'keyword': {'type': 'keyword'}  # Create a 'keyword' sub-field for exact matching on 'text'
+                }
+            },
+            'rating': {'type': 'integer'}  # 'rating' is an integer field (e.g., product ratings)
+        }
+    }
+}
+
+# Define the index name to use in Elasticsearch
+index_name = 'food-reviews'
+
+# Try to check if the index already exists
+try:
+    es.indices.get(index_name)  # Try to fetch the index details
+    print(f'Index {index_name} already exists')  # If it exists, print this message
+except:
+    # If index doesn't exist, create the index with the provided settings and mappings
+    print(f'Creating index {index_name}')
+    es.indices.create(index_name, body=request_body)  # Create the index with the defined request body
+
+# Function to index data
+
+def gendata():
+    for texts in text_data:
+        yield {
+            '_op_type': 'index',  
+            '_index': index_name,
+            'productid': texts[0],
+            'summary': texts[2],
+            'text': texts[3],
+            'rating': texts[1],
+        }
+
+# Perform the bulk operation
+success, failed = bulk(es, gendata())
+print(f"Successfully indexed {success} documents.")
+es.indices.refresh(index=index_name)
+
+
+##QUERY PROCESSING MODULE
+
+# Function that outputs the documents relevant to the query 
+def pretty_response(response):
+    if len(response["hits"]["hits"]) == 0:
+        print("Your search returned no results.")
+    else:
+        for hit in response["hits"]["hits"]:
+            # Access the fields from '_source'
+            text = hit["_source"]['text']
+            id = hit["_source"]['productid']
+            summary = hit["_source"]['summary']
+            rating = hit["_source"]["rating"]
+            score = hit["_score"]
+            explanation = hit["_explanation"]
+            pretty_output = f"\nID: {id}\nSummary: {summary}\nScore: {score}\nTitle: {text}\nRating: {rating}\nExplanation: {explanation}\n"
+            print(pretty_output)
+
+# Function of input query finds all documents containing the word match
+def query_body(input,gte, lte):
+    query = {
+        "query": {
+            "bool": {
+                "should": {
+                    "multi_match": {
+                        "query": input,
+                        "fields": ['summary', 'text'],
+                        "fuzziness": "AUTO",
+                    }
+                },
+                "filter": {
+                    "range":{
+                        "rating" :{
+                            "gte":gte,
+                            "lte": lte
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    return query
+
+
+# Assuming 'es' is your Elasticsearch client and you're querying the index
+
+
+try:
+    results = es.search(index=index_name ,size=5, body=query_body('water',3,5), explain=True, preference= 'same_shard')
+    pretty_response(results)
+except ElasticsearchException as e:
+    print(f"An error occured when executing query: {e}")
+# Call the function to display results
+
+pretty_response(results)
+        
+
+
