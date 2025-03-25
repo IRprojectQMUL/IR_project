@@ -26,6 +26,9 @@ import kagglehub
 from elasticsearch import Elasticsearch
 import time
 import pandas as pd
+import spacy
+import string
+from sklearn.feature_extraction.text import CountVectorizer
 
 es = Elasticsearch("http://localhost:9200")
 # Let's test whether we have succesfully started an ES instance and
@@ -46,4 +49,34 @@ reviews = pd.read_csv('/root/.cache/kagglehub/datasets/snap/amazon-fine-food-rev
 reviews.head()
 
 reviews = reviews.drop(['Id', 'UserId', 'ProfileName', 'HelpfulnessNumerator', 'HelpfulnessDenominator','Time'], axis=1)
+reviews = reviews.dropna(subset=['Summary'])
 reviews.head()
+
+
+
+#load spaCy model for tokenisation and lemmatisation
+nlp = spacy.load("en_core_web_sm")
+
+#CountVectorizer for stopword removal
+vectorizer = CountVectorizer(stop_words='english', binary=True)
+
+#extract only the review text column - probably change this variable based on wat u guys did before 
+reviews_text = [row[3] for row in reviews.values.tolist()]
+
+#lowercase
+reviews_text = [text.lower() for text in reviews_text]
+
+#remove punctuation
+reviews_text = [text.translate(str.maketrans('', '', string.punctuation)) for text in reviews_text]
+
+#tokenisation
+reviews_text = [[token.text for token in nlp(text)] for text in reviews_text]
+
+#lemmatisation
+reviews_text = [[token.lemma_ for token in nlp(" ".join(tokens))] for tokens in reviews_text]
+
+#stopword
+stopword_set = vectorizer.get_stop_words()
+reviews_text = [[word for word in tokens if word not in stopword_set] for tokens in reviews_text]
+
+print(reviews_text[:5])
