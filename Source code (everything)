@@ -55,32 +55,45 @@ reviews.head()
 
 ## PREPROCESSING MODULE
 
-#load spaCy model for tokenisation and lemmatisation
-nlp = spacy.load("en_core_web_sm")
+#convert dataframe into a list
+reviews_list = reviews.values.tolist()
 
-#CountVectorizer for stopword removal
-vectorizer = CountVectorizer(stop_words='english', binary=True)
-
-#extract only the review text column - probably change this variable based on wat u guys did before 
+#extract only the review text column as a list for preprocessing
 reviews_text = [row[3] for row in reviews.values.tolist()]
 
-#lowercase
-reviews_text = [text.lower() for text in reviews_text]
+#packages
+import re
+import nltk
+from nltk.stem import WordNetLemmatizer
+from nltk import word_tokenize
+from sklearn.feature_extraction.text import CountVectorizer
+from tqdm import tqdm
 
-#remove punctuation
-reviews_text = [text.translate(str.maketrans('', '', string.punctuation)) for text in reviews_text]
+#NLTK resources
+nltk.download('punkt_tab')
+nltk.download('wordnet')
+nltk.download('omw-1.4')
 
-#tokenisation
-reviews_text = [[token.text for token in nlp(text)] for text in reviews_text]
-
-#lemmatisation
-reviews_text = [[token.lemma_ for token in nlp(" ".join(tokens))] for tokens in reviews_text]
-
-#stopword
+#tools
+wnl = WordNetLemmatizer() #for lemmatisation
+regex_punct = r'[^\w\s]'  #for removing punctuation
+vectorizer = CountVectorizer(stop_words='english') #for removing stopwords
 stopword_set = vectorizer.get_stop_words()
-reviews_text = [[word for word in tokens if word not in stopword_set] for tokens in reviews_text]
 
-print(reviews_text[:5])
+reviews_list = [
+    [
+        row[0],  # product ID
+        row[1],  # score
+        row[2],  # summary
+        [wnl.lemmatize(t.lower()) for t in word_tokenize(row[3])
+         if not re.search(regex_punct, t) and t.lower() not in stopword_set] #text
+    ]
+    for row in tqdm(reviews_list) if isinstance(row[3], str)
+]
+
+#rejoin tokens in row[3] back into strings for index
+for row in reviews_list:
+    row[3] = ' '.join(row[3])
 
 ## INDEXING MODULE 
 
@@ -135,7 +148,7 @@ except:
 # Function to index data
 
 def gendata():
-    for texts in text_data:
+    for texts in reviews_list:
         yield {
             '_op_type': 'index',  
             '_index': index_name,
