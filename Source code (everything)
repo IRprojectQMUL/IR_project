@@ -147,6 +147,8 @@ except:
 
 # Function to index data
 
+from elasticsearch.helpers import bulk
+
 def gendata():
     for texts in reviews_list:
         yield {
