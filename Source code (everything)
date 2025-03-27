@@ -192,7 +192,8 @@ def query_body(input,gte):
                 "should": {
                     "multi_match": {
                         "query": input,
-                        "fields": ['summary', 'text'],
+                        "type": "most_fields",
+                        "fields": ['summary', 'text^3'],
                         "fuzziness": "AUTO",
                     }
                 },
@@ -214,7 +215,7 @@ def query_body(input,gte):
 
 
 try:
-    results = es.search(index=index_name ,size=10, body=query_body('summertime',3), explain=True, preference= 'same_shard')
+    results = es.search(index=index_name ,size=10, body=query_body('summertime',3), explain=True)
     pretty_response(results)
 except ElasticsearchException as e:
     print(f"An error occured when executing query: {e}")
