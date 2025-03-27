@@ -52,8 +52,10 @@ reviews = reviews.drop(['Id', 'UserId', 'ProfileName', 'HelpfulnessNumerator', '
 reviews = reviews.dropna(subset=['Summary'])
 reviews.head()
 
-
 ## PREPROCESSING MODULE
+
+#Drop Duplicates
+reviews = reviews.drop_duplicates(subset=['Text'])
 
 #convert dataframe into a list
 reviews_list = reviews.values.tolist()
@@ -222,6 +224,37 @@ except ElasticsearchException as e:
 # Call the function to display results
 
 pretty_response(results)
-        
 
+
+## EVALUATION
+
+def precision_at_k(retrieved_docs, relevant_docs, k):
+    retrieved_k = retrieved_docs[:k]
+    relevant_count = sum(1 for doc in retrieved_k if doc in relevant_docs)
+    return relevant_count / k
+
+def recall_at_k(retrieved_docs, relevant_docs, k):
+    retrieved_k = retrieved_docs[:k]
+    relevant_count = sum(1 for doc in retrieved_k if doc in relevant_docs)
+    return relevant_count / len(relevant_docs) if relevant_docs else 0
+
+def dcg_at_k(scores, k):
+    return sum((score / np.log2(idx + 2)) for idx, score in enumerate(scores[:k]))
+
+def ndcg_at_k(retrieved_docs, relevant_docs, k):
+    retrieved_scores = [1 if doc in relevant_docs else 0 for doc in retrieved_docs]
+    ideal_scores = sorted(retrieved_scores, reverse=True)
+
+    dcg = dcg_at_k(retrieved_scores, k)
+    idcg = dcg_at_k(ideal_scores, k)
+
+    return dcg / idcg if idcg > 0 else 0
+        
+retrieved_docs = []  # Retrieved document IDs
+relevant_docs = [] # Ground truth relevant document IDs
+k = 10
+
+print("Precision@{}: {:.2f}".format(k, precision_at_k(retrieved_docs, relevant_docs, k)))
+print("Recall@{}: {:.2f}".format(k, recall_at_k(retrieved_docs, relevant_docs, k)))
+print("NDCG@{}: {:.2f}".format(k, ndcg_at_k(retrieved_docs, relevant_docs, k)))
 
