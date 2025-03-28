@@ -22,32 +22,36 @@ sudo -H -u daemon elasticsearch-7.9.2/bin/elasticsearch
 %%bash
 ps -ef | grep elasticsearch
 
+#packages
+import re
+import nltk
+from nltk.stem import WordNetLemmatizer
+from nltk import word_tokenize
+from sklearn.feature_extraction.text import CountVectorizer
+from tqdm import tqdm
 import kagglehub
 from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import ElasticsearchException
+from elasticsearch.helpers import bulk
 import time
 import pandas as pd
 import spacy
 import string
 from sklearn.feature_extraction.text import CountVectorizer
 
-es = Elasticsearch("http://localhost:9200")
-# Let's test whether we have succesfully started an ES instance and
-# imported the python library
-if es.ping():
-  print('ES instance working')
-else:
-  print('ES instance not working')
+
 
 # start es server
 time.sleep(20) # give the server 20 seconds to start
 !curl -X GET "http://localhost:9200"
 
+#Get, load and visualise Dataset 
 path = kagglehub.dataset_download("snap/amazon-fine-food-reviews")
 print("Path to dataset files:", path)
 
 reviews = pd.read_csv('/root/.cache/kagglehub/datasets/snap/amazon-fine-food-reviews/versions/2/Reviews.csv')
-reviews.head()
 
+#Remove columns not needed 
 reviews = reviews.drop(['Id', 'UserId', 'ProfileName', 'HelpfulnessNumerator', 'HelpfulnessDenominator','Time'], axis=1)
 reviews = reviews.dropna(subset=['Summary'])
 reviews.head()
@@ -62,14 +66,6 @@ reviews_list = reviews.values.tolist()
 
 #extract only the review text column as a list for preprocessing
 reviews_text = [row[3] for row in reviews.values.tolist()]
-
-#packages
-import re
-import nltk
-from nltk.stem import WordNetLemmatizer
-from nltk import word_tokenize
-from sklearn.feature_extraction.text import CountVectorizer
-from tqdm import tqdm
 
 #NLTK resources
 nltk.download('punkt_tab')
@@ -149,21 +145,19 @@ except:
 
 # Function to index data
 
-from elasticsearch.helpers import bulk
-
 def gendata():
-    for texts in reviews_list:
+    for reviews in reviews_list:
         yield {
             '_op_type': 'index',  
             '_index': index_name,
-            'productid': texts[0],
-            'summary': texts[2],
-            'text': texts[3],
-            'rating': texts[1],
+            'productid': reviews[0],
+            'summary': reviews[2],
+            'text': reviews[3],
+            'rating': reviews[1],
         }
 
 # Perform the bulk operation
-success, failed = bulk(es, gendata())
+success = bulk(es, gendata())
 print(f"Successfully indexed {success} documents.")
 es.indices.refresh(index=index_name)
 
@@ -213,16 +207,10 @@ def query_body(input,gte):
     return query
 
 
-# Assuming 'es' is your Elasticsearch client and you're querying the index
-
-
-try:
-    results = es.search(index=index_name ,size=10, body=query_body('summertime',3), explain=True)
-    pretty_response(results)
-except ElasticsearchException as e:
-    print(f"An error occured when executing query: {e}")
-# Call the function to display results
-
+# Store resuslts of search query & call the function to display results
+input_query = 'summertime'
+gte = 3
+results = es.search(index=index_name ,size=10, body=query_body(input_query,gte), explain=True)
 pretty_response(results)
 
 
