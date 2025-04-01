@@ -208,13 +208,27 @@ def query_body(input,gte):
 
 
 # Store resuslts of search query & call the function to display results
-input_query = 'summertime'
+query = input("Enter your search query: ")
 gte = 3
-results = es.search(index=index_name ,size=10, body=query_body(input_query,gte), explain=True)
+results = es.search(index=index_name ,size=10, body=query_body(query,gte), explain=True)
 pretty_response(results)
 
 
 ## EVALUATION
+
+0
+manual_rels, seen = [], set()
+
+for hit in results["hits"]["hits"]:
+    docid, text = hit["_source"]["productid"], hit["_source"]["text"]
+    if text in seen: continue
+    seen.add(text)
+
+    print(f"\nSummary: {hit['_source']['summary']}\nText: {text}\nProduct ID: {docid}")
+    rel = input("Relevant? (1 = yes, 0 = no): ")
+    while rel not in {'0', '1'}:
+        rel = input("Enter 1 or 0: ")
+    manual_rels.append((docid, int(rel)))
 
 def precision_at_k(retrieved_docs, relevant_docs, k):
     retrieved_k = retrieved_docs[:k]
