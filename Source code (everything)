@@ -1,5 +1,7 @@
 IF THERE IS A SPACE BETWEEN LINES == RUN IN A SEPARATE CELL
 
+#Installing necessary libraries
+
 !pip install kagglehub
 
 !wget -q https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-7.9.2-linux-x86_64.tar.gz
@@ -22,7 +24,7 @@ sudo -H -u daemon elasticsearch-7.9.2/bin/elasticsearch
 %%bash
 ps -ef | grep elasticsearch
 
-#packages
+#Importing necessary packages
 import re
 import nltk
 from nltk.stem import WordNetLemmatizer
@@ -40,7 +42,6 @@ import string
 from sklearn.feature_extraction.text import CountVectorizer
 
 
-
 # start es server
 time.sleep(20) # give the server 20 seconds to start
 !curl -X GET "http://localhost:9200"
@@ -49,6 +50,7 @@ time.sleep(20) # give the server 20 seconds to start
 path = kagglehub.dataset_download("snap/amazon-fine-food-reviews")
 print("Path to dataset files:", path)
 
+#Load the file 
 reviews = pd.read_csv('/root/.cache/kagglehub/datasets/snap/amazon-fine-food-reviews/versions/2/Reviews.csv')
 
 #Remove columns not needed 
@@ -144,7 +146,6 @@ except:
     es.indices.create(index_name, body=request_body)  # Create the index with the defined request body
 
 # Function to index data
-
 def gendata():
     for reviews in reviews_list:
         yield {
@@ -216,7 +217,7 @@ pretty_response(results)
 
 ## EVALUATION
 
-0
+#An input for every hit that we receive, we give it a '1' for relevant and '0' for non relevant
 manual_rels, seen = [], set()
 
 for hit in results["hits"]["hits"]:
@@ -230,19 +231,23 @@ for hit in results["hits"]["hits"]:
         rel = input("Enter 1 or 0: ")
     manual_rels.append((docid, int(rel)))
 
+#Precision @ k
 def precision_at_k(retrieved_docs, relevant_docs, k):
     retrieved_k = retrieved_docs[:k]
     relevant_count = sum(1 for doc in retrieved_k if doc in relevant_docs)
     return relevant_count / k
 
+#Recall @ k
 def recall_at_k(retrieved_docs, relevant_docs, k):
     retrieved_k = retrieved_docs[:k]
     relevant_count = sum(1 for doc in retrieved_k if doc in relevant_docs)
     return relevant_count / len(relevant_docs) if relevant_docs else 0
 
+#DCG @ k
 def dcg_at_k(scores, k):
     return sum((score / np.log2(idx + 2)) for idx, score in enumerate(scores[:k]))
 
+#NDCG @ k
 def ndcg_at_k(retrieved_docs, relevant_docs, k):
     retrieved_scores = [1 if doc in relevant_docs else 0 for doc in retrieved_docs]
     ideal_scores = sorted(retrieved_scores, reverse=True)
@@ -252,10 +257,10 @@ def ndcg_at_k(retrieved_docs, relevant_docs, k):
 
     return dcg / idcg if idcg > 0 else 0
         
-retrieved_docs = []  # Retrieved document IDs
-relevant_docs = [] # Ground truth relevant document IDs
-k = 10
+doc_scores = [(hit["_source"]["productid"], hit["_score"]) for hit in results["hits"]["hits"]]
+k = 5
 
+#Get Results
 print("Precision@{}: {:.2f}".format(k, precision_at_k(retrieved_docs, relevant_docs, k)))
 print("Recall@{}: {:.2f}".format(k, recall_at_k(retrieved_docs, relevant_docs, k)))
 print("NDCG@{}: {:.2f}".format(k, ndcg_at_k(retrieved_docs, relevant_docs, k)))
